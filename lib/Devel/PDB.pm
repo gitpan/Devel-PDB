@@ -16,7 +16,7 @@ use Devel::PDB::Source;
 
 use vars qw(*dbline);
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 our $single;
 our $sub;
@@ -388,7 +388,7 @@ sub sub {
     my ($ret, @ret);
 
     local $current_sub = $sub;
-    local $stack_depth += 1;
+    local $stack_depth = $stack_depth + 1;
     $#stack = $stack_depth;
     $stack[-1] = $single;
     $single &= 1;
