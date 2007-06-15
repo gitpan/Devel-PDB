@@ -6,7 +6,8 @@ WriteMakefile(
     NAME              => 'Devel::PDB',
     VERSION_FROM      => 'lib/Devel/PDB.pm', # finds $VERSION
     PREREQ_PM         => {
-    	'Curses::UI' => 0.95
+    	'Curses::UI' => 0.95,
+    	'Class::Accessor' => 0.27,
     },
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM  => 'lib/Devel/PDB.pm', # retrieve abstract from module

@@ -87,7 +87,8 @@ sub toggle_break {
     return 0 if $line_cnt <= $line;
 
     if ($breaks->{$line}) {
-	delete($breaks->{$line});
+	$breaks->{$line} = 0;
+	delete $breaks->{$line};
     } else {
 	$ret = $breaks->{$line} = 1;
     }

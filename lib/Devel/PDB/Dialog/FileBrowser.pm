@@ -162,12 +162,14 @@ sub on_file_active {
     my $width = $file->{-width};
 
     my $show = '';
-    my $ptr = 0;
-    my $len = length($active);
-    for ($ptr = 0; $ptr < $len; $ptr += $width) {
-        $show .= substr($active, $ptr, $width) . "\n";
+    if (defined $active) {
+        my $ptr = 0;
+        my $len = length($active);
+        for ($ptr = 0; $ptr < $len; $ptr += $width) {
+            $show .= substr($active, $ptr, $width) . "\n";
+        }
+        $show .= substr $active, $ptr if $ptr < $len;
     }
-    $show .= substr $active, $ptr;
 
     $file->text($show);
 }

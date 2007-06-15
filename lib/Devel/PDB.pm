@@ -16,7 +16,7 @@ use Devel::PDB::Source;
 
 use vars qw(*dbline);
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 our $single;
 our $sub;
@@ -59,7 +59,7 @@ $stack_depth = 0;
 @stack = (0);
 
 END {
-    open STDOUT, ">&", $stdout;
+    open STDOUT, ">&", $stdout if $stdout;
     $single = 0;
 }
 
