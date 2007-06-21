@@ -16,7 +16,7 @@ use Devel::PDB::Source;
 
 use vars qw(*dbline);
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 our $single;
 our $sub;
@@ -41,7 +41,9 @@ my $package;
 my $filename;
 my $line;
 my @watch_exprs;
+my $update_watch_list;
 
+my $lower_win;
 my $auto_win;
 my $watch_win;
 my $padvar_list;
@@ -120,8 +122,7 @@ sub db_add_watch_expr {
     my $expr = $cui->question(-question => 'Please enter an expression to watch for', %def_style);
     return if !$expr;
     push @watch_exprs, { name => $expr };
-    &ui_update_watch_list;
-    $cui->draw;
+    $update_watch_list = 1;
 }
 
 sub ui_open_file {
@@ -142,10 +143,9 @@ sub ui_open_file {
 sub ui_adjust_vert_parts {
     my $delta = shift;
     return if $delta > 0 && $sv_win->{-padbottom} >= $cui->{-height} - $sv_win->{-padtop} - 5 or
-        $delta < 0 && $auto_win->{-height} <= 5;
+        $delta < 0 && $lower_win->{-height} <= 5;
     $sv_win->{-padbottom} += $delta;
-    $auto_win->{-height} += $delta;
-    $watch_win->{-height} += $delta;
+    $lower_win->{-height} += $delta;
     $cui->layout_contained_objects;
 }
 
@@ -198,12 +198,19 @@ sub init {
         %def_style,
     );
     
-    $auto_win = $cui->add(
+    $lower_win = $cui->add(
+        'lower_win', 'Window',
+        -border => 0,
+        -y => -1,
+        -height => $lower_height,
+        %def_style,
+    );
+
+    $auto_win = $lower_win->add(
         'auto_win', 'Window',
         -border => 1,
         -y => -1,
         -width => $half_width,
-        -height => $lower_height,
         -title => 'Auto',
         %def_style,
     );
@@ -213,13 +220,12 @@ sub init {
         -named_list => \@padlist_disp,
     );
 
-    $watch_win = $cui->add(
+    $watch_win = $lower_win->add(
         'watch_win', 'Window',
         -border => 1,
         -x => -1,
         -y => -1,
         -padleft => $half_width,
-        -height => $lower_height,
         -title => 'Watch',
         %def_style,
     );
@@ -310,14 +316,17 @@ sub eval {
 
 sub ui_update_watch_list {
     local $Data::Dumper::Terse = 1;
+    local $Data::Dumper::Maxdepth;
     local $Data::Dumper::Indent;
 
     foreach my $expr (@watch_exprs) {
         $evalarg = $expr->{name};
         my $res = &DB::eval;
         $Data::Dumper::Indent = 0;
+        $Data::Dumper::Maxdepth = 2;
         $expr->{value} = Dumper $res;
         $Data::Dumper::Indent = 1;
+        $Data::Dumper::Maxdepth = 0;
         $expr->{long_value} = Dumper $res;
     }
 
@@ -347,15 +356,18 @@ sub DB  {
     my $count = @names;
 
     local $Data::Dumper::Terse = 1;
+    local $Data::Dumper::Maxdepth;
     local $Data::Dumper::Indent;
     for (my ($i, $j) = (0, 0); $i < $count; $i++) {
         my $sv = $names[$i];
         next if class($sv) eq 'SPECIAL';
         my $name = $sv->PVX;
         $Data::Dumper::Indent = 0;
+        $Data::Dumper::Maxdepth = 2;
         my $val = Dumper $vals[$i]->object_2svref;
         $val =~ s/^\\// if class($sv) ne 'RV';
         $Data::Dumper::Indent = 1;
+        $Data::Dumper::Maxdepth = 0;
         my $long_val = Dumper $vals[$i]->object_2svref;
         $long_val =~ s/^\\// if class($sv) ne 'RV';
         if ($renew || $val ne $padlist{$name}) {
@@ -374,10 +386,16 @@ sub DB  {
 
     $yield = 0;
     $new_single = $single;
-    $sv->focus;
     $cui->focus(undef, 1);
     $cui->draw;
-    $cui->do_one_event while !$yield;
+    $update_watch_list = 0;
+    while (!$yield) {
+        $cui->do_one_event;
+        if ($update_watch_list) {
+            ui_update_watch_list;
+            $cui->draw;
+        }
+    }
     $single = $new_single;
 
     open STDOUT, ">&", $output;
