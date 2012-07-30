@@ -4,34 +4,34 @@ use strict;
 use warnings;
 
 use Curses;
+use Curses::UI;
 use Curses::UI::Window;
 use Curses::UI::Common;
 
 use vars qw(
-    $VERSION 
-    @ISA
-);
+  $VERSION
+  @ISA
+  );
 
 @ISA = qw(
-    Curses::UI::Window
-    Curses::UI::Common
-);
+  Curses::UI::Window
+  Curses::UI::Common
+  );
 
 $VERSION = '1.0';
 
-sub new ()
-{
+sub new () {
     my $class = shift;
 
     my %userargs = @_;
     keys_to_lowercase(\%userargs);
 
-    my %args = ( 
-        -border       => 1,
-        -message      => '',        # The message to show
-        -ipad         => 1, 
-	-fg           => -1,
-        -bg           => -1,
+    my %args = (
+        -border  => 1,
+        -message => '',    # The message to show
+        -ipad    => 1,
+        -fg      => -1,
+        -bg      => -1,
 
         %userargs,
 
@@ -47,52 +47,53 @@ sub new ()
     # of this.
     #
     my $remember = $Curses::UI::screen_too_small;
-    my $this = $class->SUPER::new(%args);
-    
-    my $viewer = $this->add('message', 'TextViewer',
-        -border      => 1,
-        -vscrollbar  => 1,
-        -wrapping    => 1,
-        -padbottom   => 2,
-        -text        => $this->{-message},
-        -bg          => $this->{-bg},
-        -fg          => $this->{-fg},
-        -bbg         => $this->{-bg},
-        -bfg         => $this->{-fg},
-	-focusable   => 0,
-    );    
+    my $this     = $class->SUPER::new(%args);
 
-    # Create a hash with arguments that may be passed to     
-    # the Buttonbox class.
-    my %buttonargs = (
-        -buttonalignment => 'right',
+    my $viewer = $this->add(
+        'message', 'TextViewer',
+        -border     => 1,
+        -vscrollbar => 1,
+        -wrapping   => 1,
+        -padbottom  => 2,
+        -text       => $this->{-message},
+        -bg         => $this->{-bg},
+        -fg         => $this->{-fg},
+        -bbg        => $this->{-bg},
+        -bfg        => $this->{-fg},
+        -focusable  => 0,
     );
-    foreach my $arg (qw(-buttons -selected -buttonalignment)) { 
-        $buttonargs{$arg} = $this->{$arg} 
-            if exists $this->{$arg}; 
+
+    # Create a hash with arguments that may be passed to
+    # the Buttonbox class.
+    my %buttonargs = (-buttonalignment => 'right',);
+    foreach my $arg (qw(-buttons -selected -buttonalignment)) {
+        $buttonargs{$arg} = $this->{$arg}
+          if exists $this->{$arg};
     }
     my $b = $this->add(
-       'buttons', 'Buttonbox',
-       -y => -1,
-       -bg          => $this->{-bg},
-       -fg          => $this->{-fg},
+        'buttons', 'Buttonbox',
+        -y  => -1,
+        -bg => $this->{-bg},
+        -fg => $this->{-fg},
 
-       %buttonargs
+        %buttonargs
     );
 
     # Let the window in which the buttons are loose focus
     # if a button is pressed.
-    $b->set_routine( 'press-button', sub { 
-        my $this = shift;
-        my $parent = $this->parent;
-        $parent->loose_focus();
-    } );
+    $b->set_routine(
+        'press-button',
+        sub {
+            my $this   = shift;
+            my $parent = $this->parent;
+            $parent->loose_focus();
+        });
 
-    $this->set_binding(sub { $viewer->cursor_left; $viewer->intellidraw }, KEY_LEFT);
-    $this->set_binding(sub { $viewer->cursor_right; $viewer->intellidraw }, KEY_RIGHT);
-    $this->set_binding(sub { $viewer->cursor_up; $viewer->intellidraw }, KEY_UP);
-    $this->set_binding(sub { $viewer->cursor_down; $viewer->intellidraw }, KEY_DOWN);
-    $this->set_binding(sub { $viewer->cursor_pageup; $viewer->intellidraw }, KEY_PPAGE);
+    $this->set_binding(sub { $viewer->cursor_left;     $viewer->intellidraw }, KEY_LEFT);
+    $this->set_binding(sub { $viewer->cursor_right;    $viewer->intellidraw }, KEY_RIGHT);
+    $this->set_binding(sub { $viewer->cursor_up;       $viewer->intellidraw }, KEY_UP);
+    $this->set_binding(sub { $viewer->cursor_down;     $viewer->intellidraw }, KEY_DOWN);
+    $this->set_binding(sub { $viewer->cursor_pageup;   $viewer->intellidraw }, KEY_PPAGE);
     $this->set_binding(sub { $viewer->cursor_pagedown; $viewer->intellidraw }, KEY_NPAGE);
 
     # Restore screen_too_small (see above) and
@@ -102,52 +103,51 @@ sub new ()
 
     # Set the initial focus to the buttons.
     $b->focus;
-    
+
     return bless $this, $class;
 }
 
 # TODO delete_curses_windows
-sub layout()
-{
+sub layout() {
     my $this = shift;
     return $this if $Curses::UI::screen_too_small;
 
     # The maximum available space on the screen.
-    my $avail_width = $ENV{COLS};
+    my $avail_width  = $ENV{COLS};
     my $avail_height = $ENV{LINES};
 
     # Compute the maximum available space for the message.
 
     $this->process_padding;
 
-    my $avail_textwidth  = $avail_width;
-    $avail_textwidth  -= 2; # border for the textviewer
-    $avail_textwidth  -= 2 if $this->{-border};
-    $avail_textwidth  -= $this->{-ipadleft} - $this->{-ipadright};
+    my $avail_textwidth = $avail_width;
+    $avail_textwidth -= 2;                                          # border for the textviewer
+    $avail_textwidth -= 2 if $this->{-border};
+    $avail_textwidth -= $this->{-ipadleft} - $this->{-ipadright};
 
     my $avail_textheight = $avail_height;
-    $avail_textheight -= 2; # border for the textviewer
-    $avail_textheight -= 2; # empty line and line of buttons
+    $avail_textheight -= 2;                                          # border for the textviewer
+    $avail_textheight -= 2;                                          # empty line and line of buttons
     $avail_textheight -= 2 if $this->{-border};
     $avail_textheight -= $this->{-ipadtop} - $this->{-ipadbottom};
 
     # Break up the message in separate lines if neccessary.
     my @lines = ();
-    foreach (split (/\n/,  $this->{-message})) {
+    foreach (split(/\n/, $this->{-message})) {
         push @lines, @{text_wrap($_, $avail_textwidth)};
     }
 
     # Compute the longest line in the message.
     my $longest_line = 0;
-    foreach (@lines) { 
-        $longest_line = length($_) 
-            if (length($_) > $longest_line);
+    foreach (@lines) {
+        $longest_line = length($_)
+          if (length($_) > $longest_line);
     }
 
     # Compute the width of the buttons (if the buttons
     # object is available. This is not the case just after
     # new() calls SUPER::new()).
-    my $buttons = $this->getobj('buttons');
+    my $buttons      = $this->getobj('buttons');
     my $button_width = 0;
     if (defined $buttons) {
         $button_width = $buttons->compute_buttonwidth;
@@ -165,33 +165,31 @@ sub layout()
     # Compute the size of the widget.
 
     my $w = $longest_line;
-    $w += 2; # border of textviewer
-    $w += 2; # extra width for preventing wrapping of text
+    $w += 2;                                          # border of textviewer
+    $w += 2;                                          # extra width for preventing wrapping of text
     $w += 2 if $this->{-border};
-    $w += $this->{-ipadleft} + $this->{-ipadright}; 
+    $w += $this->{-ipadleft} + $this->{-ipadright};
 
     my $h = @lines;
-    $h += 2; # empty line + line of buttons
-    $h += 2; # border of textviewer
+    $h += 2;                                          # empty line + line of buttons
+    $h += 2;                                          # border of textviewer
     $h += 2 if $this->{-border};
-    $h += $this->{-ipadtop} + $this->{-ipadbottom}; 
+    $h += $this->{-ipadtop} + $this->{-ipadbottom};
 
-    $this->{-width} = $w;
+    $this->{-width}  = $w;
     $this->{-height} = $h;
 
     $this->SUPER::layout;
-    
+
     return $this;
 }
 
-sub get()
-{
+sub get() {
     my $this = shift;
     $this->getobj('buttons')->get;
 }
 
-sub run
-{
+sub run {
     $Curses::UI::rootobject->tempdialog(@_);
 }
 

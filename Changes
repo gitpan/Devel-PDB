@@ -1,5 +1,24 @@
 Revision history for Perl extension Devel::PDB.
 
+0.99  Mon Jul 23 15:32:23 CEST 2012
+	- Eval code
+	- Find perl files
+	- Special variables
+	- Enviroment change
+	- etc ....
+
+0.9   Tue Jul 17 15:28:53 CEST 2012
+	- Stack window
+	- Breakpoints listing
+	- etc ....
+
+0.07  Tue Jul 10 01:47:58 PDT 2012
+	- Save|load config files(watches+breakpoints)
+	- Viewing STDERR+STDOUT files
+	- Keybindings
+	- Exit menu
+	- etc.....
+
 0.06  Fri Jun 22 00:52:42 2007
 	- fixed Watch (value was not correctly shown for newly added expression)
 

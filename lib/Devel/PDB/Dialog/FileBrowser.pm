@@ -8,38 +8,38 @@ use Curses::UI::Window;
 use Curses::UI::Common;
 
 use vars qw(
-    $VERSION 
-    @ISA
-);
+  $VERSION
+  @ISA
+  );
 
 @ISA = qw(
-    Curses::UI::Window
-    Curses::UI::Common
-);
+  Curses::UI::Window
+  Curses::UI::Common
+  );
 
 $VERSION = '1.0';
 
-my $file_label = 'File:';
+my $file_label   = 'File:';
 my $filter_label = 'Filter:';
 my $dialog_title = 'File(s)';
 
 sub new {
-    my $class = shift;
+    my $class    = shift;
     my %userargs = @_;
 
     keys_to_lowercase(\%userargs);
 
-    my %args = ( 
-        -title          => $dialog_title,
-	-bg             => -1,
-        -fg             => -1,
+    my %args = (
+        -title => $dialog_title,
+        -bg    => -1,
+        -fg    => -1,
 
         %userargs,
 
-        -border         => 1,
-        -centered       => 1,
-        -titleinverse   => 0,
-        -ipad           => 1,
+        -border       => 1,
+        -centered     => 1,
+        -titleinverse => 0,
+        -ipad         => 1,
     );
 
     my $this = $class->SUPER::new(%args);
@@ -48,73 +48,100 @@ sub new {
 
     my $filebrowser = $this->add(
         'filebrowser', 'Listbox',
-        -y              => 0,
-        -border         => 1,
-        -width          => $this->canvaswidth,
-        -padbottom      => 4,
-        -values         => [],
-        -vscrollbar     => 1,
-        -bg             => $this->{-bg},
-        -fg             => $this->{-fg},
-        -bbg            => $this->{-bg},
-        -bfg            => $this->{-fg},
-        -onselchange    => \&on_file_active,
+        -y           => 0,
+        -border      => 1,
+        -width       => $this->canvaswidth,
+        -padbottom   => 4,
+        -values      => [],
+        -vscrollbar  => 1,
+        -bg          => $this->{-bg},
+        -fg          => $this->{-fg},
+        -bbg         => $this->{-bg},
+        -bfg         => $this->{-fg},
+        -onselchange => \&on_file_active,
     );
 
     $filebrowser->set_routine('option-select', \&on_file_sel);
 
     $this->add(
         'filterlabel', 'Label',
-        -x          => 1,
-        -y          => $this->canvasheight - 4,
-        -text       => $filter_label,
-        -bg         => $this->{-bg},
-        -fg         => $this->{-fg},
+        -x    => 1,
+        -y    => $this->canvasheight - 4,
+        -text => $filter_label,
+        -bg   => $this->{-bg},
+        -fg   => $this->{-fg},
     );
 
     my $filter = $this->add(
         'filter', 'TextEntry',
-        -x          => 10,
-        -y          => $this->canvasheight - 4, 
-        -text       => '',
-        -width      => $this->canvaswidth - 11,
-        -showlines  => 1,
-        -bg         => $this->{-bg},
-        -fg         => $this->{-fg},
+        -x         => 10,
+        -y         => $this->canvasheight - 4,
+        -text      => '',
+        -width     => $this->canvaswidth - 11,
+        -showlines => 1,
+        -bg        => $this->{-bg},
+        -fg        => $this->{-fg},
     );
 
     $this->add(
         'filelabel', 'Label',
-        -x          => 1,
-        -y          => $this->canvasheight - 3, 
-        -text       => $file_label,
-        -bg         => $this->{-bg},
-        -fg         => $this->{-fg},
+        -x    => 1,
+        -y    => $this->canvasheight - 3,
+        -text => $file_label,
+        -bg   => $this->{-bg},
+        -fg   => $this->{-fg},
     );
 
     $this->add(
         'file', 'Label',
-        -x              => 10,
-        -y              => $this->canvasheight - 3, 
-        -width          => $this->canvaswidth - 11,
-        -height         => 3,
-        -text           => '',
-        -bg             => $this->{-bg},
-        -fg             => $this->{-fg},
+        -x      => 10,
+        -y      => $this->canvasheight - 3,
+        -width  => $this->canvaswidth - 11,
+        -height => 3,
+        -text   => '',
+        -bg     => $this->{-bg},
+        -fg     => $this->{-fg},
     );
 
 
-    $this->set_binding(sub {
-        ($this->getfocusobj == $filter ? $filebrowser : $filter)->focus;
-    }, CUI_TAB);
+    $this->set_binding(
+        sub {
+            ($this->getfocusobj == $filter ? $filebrowser : $filter)->focus;
+        },
+        CUI_TAB
+    );
 
-    $filter->onChange(sub {
-        $this->refresh_list;
-    });
+    $filter->onChange(
+        sub {
+            $this->refresh_list;
+        });
 
-    $this->set_binding(sub {
-        shift->loose_focus;
-    }, CUI_ESCAPE);
+    $this->set_binding(
+        sub {
+            shift->loose_focus;
+        },
+        CUI_ESCAPE
+    );
+
+    if ($this->{its_Watches}) {
+        $this->set_binding(
+            sub {
+                my $this    = shift;
+                my $browser = $this->getobj('filebrowser');
+                my $id      = $browser->get_active_value();
+                my $i       = 0;
+                foreach my $f (@{$this->{-files}}) {
+                    if ($id eq $f) {
+                        splice(@{$this->{-files}}, $i, 1);
+                        last;
+                    }
+                    $i++;
+                }
+                $this->refresh_list;
+            },
+            KEY_DC
+        );
+    }
 
     $this->layout();
     $this->refresh_list;
@@ -125,7 +152,7 @@ sub new {
 sub layout {
     my $this = shift;
 
-    $this->{-width} = $this->root->{-width} - 10;
+    $this->{-width}  = $this->root->{-width} - 10;
     $this->{-height} = $this->root->{-height} - 10;
 
     $this->SUPER::layout() or return;
@@ -136,18 +163,16 @@ sub layout {
 sub refresh_list {
     my $this = shift;
 
-    my $file = $this->getobj('file');
+    my $file    = $this->getobj('file');
     my $browser = $this->getobj('filebrowser');
-    my $filter = $this->getobj('filter');
+    my $filter  = $this->getobj('filter');
 
     my @visible_files = sort @{$this->{-files}};
-    my $regexp = $filter->text;
-    eval {
-        @visible_files = grep /$regexp/i, @visible_files if $regexp;
-    };
+    my $regexp        = $filter->text;
+    eval { @visible_files = grep /$regexp/i, @visible_files if $regexp; };
 
     $browser->values(\@visible_files);
-    $browser->{-ypos} = 0;
+    $browser->{-ypos}     = 0;
     $browser->{-selected} = undef;
     $browser->layout_content->draw(1);
 
@@ -156,10 +181,10 @@ sub refresh_list {
 
 sub on_file_active {
     my $browser = shift;
-    my $this = $browser->parent;
-    my $file = $this->getobj('file');
-    my $active = $browser->get_active_value;
-    my $width = $file->{-width};
+    my $this    = $browser->parent;
+    my $file    = $this->getobj('file');
+    my $active  = $browser->get_active_value;
+    my $width   = $file->{-width};
 
     my $show = '';
     if (defined $active) {
@@ -176,14 +201,13 @@ sub on_file_active {
 
 sub on_file_sel {
     my $browser = shift;
-    my $this = $browser->parent;
+    my $this    = $browser->parent;
 
     $this->{-file} = $browser->get_active_value;
     $this->loose_focus;
 }
 
-sub draw(;$)
-{
+sub draw(;$) {
     my $this = shift;
     my $no_doupdate = shift || 0;
 
@@ -196,8 +220,7 @@ sub draw(;$)
     return $this;
 }
 
-sub get()
-{
+sub get() {
     return shift->{-file};
 }
 

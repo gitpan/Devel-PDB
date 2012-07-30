@@ -9,14 +9,14 @@ use Curses::UI::Listbox;
 use Devel::PDB::Dialog::Message;
 
 use vars qw(
-    $VERSION 
-    @ISA
-);
+  $VERSION
+  @ISA
+  );
 
 @ISA = qw(
-    Curses::UI::Listbox
-    Curses::UI::Common
-);
+  Curses::UI::Listbox
+  Curses::UI::Common
+  );
 
 $VERSION = '1.0';
 
@@ -24,7 +24,7 @@ my $var_name_spaces = 20;
 
 sub new {
     my $class = shift;
-    my $this = $class->SUPER::new(@_);
+    my $this  = $class->SUPER::new(@_);
 
     $this->set_binding(\&delete_item, KEY_DC) unless $this->{-readonly};
     $this->set_binding(\&show_item, KEY_ENTER);
@@ -33,8 +33,8 @@ sub new {
 }
 
 sub delete_item {
-    my $this = shift;
-    my $id = $this->get_active_id;
+    my $this       = shift;
+    my $id         = $this->get_active_id;
     my $named_list = $this->{-named_list};
 
     splice @$named_list, $id, 1;
@@ -43,7 +43,7 @@ sub delete_item {
 
 sub show_item {
     my $this = shift;
-    my $id = $this->get_active_id;
+    my $id   = $this->get_active_id;
     my $item = $this->{-named_list}->[$id];
 
     Devel::PDB::Dialog::Message->run(-title => $item->{name}, -message => $item->{long_value}, %DB::def_style);
