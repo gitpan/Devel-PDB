@@ -95,6 +95,8 @@ sub new () {
     $this->set_binding(sub { $viewer->cursor_down;     $viewer->intellidraw }, KEY_DOWN);
     $this->set_binding(sub { $viewer->cursor_pageup;   $viewer->intellidraw }, KEY_PPAGE);
     $this->set_binding(sub { $viewer->cursor_pagedown; $viewer->intellidraw }, KEY_NPAGE);
+    $this->set_binding(sub { $viewer->search_forward;  $viewer->intellidraw }, "/");
+    $this->set_binding(sub { $viewer->search_backward; $viewer->intellidraw }, "?");
 
     # Restore screen_too_small (see above) and
     # start the second layout pass.

@@ -1322,6 +1322,12 @@ sub init {
             "FilesOpened", "Show 'Opened Files' Dialog",
             KEY_F(12)));
     push(@aFile, set_key_binding(\&db_quit, "Quit", "Quit the debugger", "\cQ", "\cC"));
+    push(@aFile, set_key_binding(sub {
+		redrawwin($stdscr);
+		ui_update_watch_list();
+		refresh_stack_menu();
+            	$cui->draw;
+		}, "Refresh", "Refresh windows", "\cI"));
 
     push(@aExecution, set_key_binding(\&db_cont,      "Continue", "Run|Continue execution", KEY_F(5)));
     push(@aExecution, set_key_binding(\&db_step_out,  "StepOut",  "Step Out",               KEY_F(6)));
@@ -1871,6 +1877,10 @@ Show 'I<Opened Files>' Dialog
 =item Quit - Ctrl+Q, Ctrl+C
 
 Quit the debugger
+
+=item Refresh - Ctrl+I
+
+Refresh all window contents
 
 =item WatchExpression - Ctrl+W
 

@@ -1,4 +1,4 @@
-PerlDeBugger (Devel-PDB) version 0.01
+PerlDeBugger (Devel-PDB) version 1.00
 =====================================
 
 (PerlDeBugger is still in development stage, not all of the planed
@@ -24,6 +24,7 @@ This module requires these other modules and libraries:
   Curses::UI >= 0.95
 
 Copyright (C) 2007 by Ivan Y.C. Wong
+Copyright (C) 2012 by Igor Bujna
 
 This debugger is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.8 or,
