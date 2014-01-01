@@ -13,12 +13,13 @@ use Curses::UI;
 use Curses::UI::Common;
 use Data::Dumper;
 use Cwd;
+use File::Basename;
 
 use Devel::PDB::Source;
 
 use vars qw(*dbline $usercontext $db_stop);
 
-our $VERSION = '0.9';
+our $VERSION = '1.01';
 
 our $single;
 our $sub;
@@ -484,9 +485,8 @@ sub db_toggle_break {
 
 sub db_add_watch_expr {
     my $expr = $cui->question(
-        -question => "Please enter an expression to watches\n"
-					."Global variables must be set as '\$main::varname'",
-		-title => "Add watch expresion",
+        -question => "Please enter an expression to watches\n" . "Global variables must be set as '\$main::varname'",
+        -title    => "Add watch expresion",
         %def_style
     );
     return if !$expr;
@@ -903,13 +903,14 @@ sub ui_adjust_hori_parts {
 }
 
 sub config_file {
-    my ($name) = @_;
-    my $config_dir = "/tmp/PBD.";
-    if (exists($ENV{HOME})) {
-        $config_dir = $ENV{HOME} . "/.PDB";
-        mkdir($config_dir) if (!-d $config_dir);
+    my $name      = shift;
+    my $file_name = File::Basename::basename($Devel::PDB::scriptName);
+    my $dir_name  = File::Basename::dirname(Cwd::abs_path($Devel::PDB::scriptName));
+    if ($ENV{PDB_use_HOME} && exists($ENV{HOME})) {
+        $dir_name = $ENV{HOME} . "/.PDB";
+        mkdir($dir_name) unless (-d $dir_name);
     }
-    return $config_dir . "/" . $name;
+    return $dir_name . "/.$file_name" . "-" . $name;
 }
 
 my $keys_binded = undef;
@@ -922,9 +923,8 @@ sub set_key_binding($$@) {
     my @keys = @_;
 
     if (!defined($keys_binded)) {
-        my $fname = config_file("keys");
         local *F;
-        if (open(F, $fname)) {
+        if (open(F, $ENV{HOME} . "/.PDB.keys")) {
             while (<F>) {
                 chomp;
                 my @a = split("=");
@@ -1322,12 +1322,19 @@ sub init {
             "FilesOpened", "Show 'Opened Files' Dialog",
             KEY_F(12)));
     push(@aFile, set_key_binding(\&db_quit, "Quit", "Quit the debugger", "\cQ", "\cC"));
-    push(@aFile, set_key_binding(sub {
-		redrawwin($stdscr);
-		ui_update_watch_list();
-		refresh_stack_menu();
-            	$cui->draw;
-		}, "Refresh", "Refresh windows", "\cI"));
+    push(
+        @aFile,
+        set_key_binding(
+            sub {
+                redrawwin($stdscr);
+                ui_update_watch_list();
+                refresh_stack_menu();
+                $cui->draw;
+            },
+            "Refresh",
+            "Refresh windows",
+            "\cI"
+        ));
 
     push(@aExecution, set_key_binding(\&db_cont,      "Continue", "Run|Continue execution", KEY_F(5)));
     push(@aExecution, set_key_binding(\&db_step_out,  "StepOut",  "Step Out",               KEY_F(6)));
@@ -1436,7 +1443,12 @@ sub init {
     push(@aView, set_key_binding(sub { $sv_win->focus }, "WindowSource", "Switch to the Source Code Window", KEY_F(1)));
     push(@aView,
         set_key_binding(sub { $auto_win->focus }, "WindowLexical", "Switch to the Lexical Variable Window", KEY_F(2)));
-    push(@aView, set_key_binding(sub { $watch_win->focus }, "WindowWatches", "Switch to the Watch Window", KEY_F(3)));
+    push(
+        @aView,
+        set_key_binding(
+            sub { ui_update_watch_list(); $watch_win->focus; },
+            "WindowWatches", "Switch to the Watch Window",
+            KEY_F(3)));
     push(@aView, set_key_binding(\&ui_view_stack, "WindowStack", "View Stack Window", "\cT"));
     push(@aView, set_key_binding(sub { ui_text_editor(3); }, "ViewVariables", "View special variables", "\cU"));
 
@@ -1532,6 +1544,7 @@ sub get_source {
             lines    => \@dbline,
             breaks   => \%dbline,
         );
+
     }
 
     return $source;
@@ -1561,6 +1574,7 @@ sub ui_update_watch_list {
     local $Data::Dumper::Terse = 1;
     local $Data::Dumper::Maxdepth;
     local $Data::Dumper::Indent;
+    local $Data::Dumper::Sortkeys = 1;
 
     foreach my $expr (@watch_exprs) {
         $evalarg = $expr->{name};
@@ -1614,6 +1628,8 @@ sub DB {
     local $Data::Dumper::Terse = 1;
     local $Data::Dumper::Maxdepth;
     local $Data::Dumper::Indent;
+    local $Data::Dumper::Sortkeys = 1;
+
     for (my ($i, $j) = (0, 0); $i < $count; $i++) {
         my $sv = $names[$i];
         next if class($sv) eq 'SPECIAL';
@@ -2022,15 +2038,21 @@ Select the highlighted file or apply the filter to the file list
 
 =head2 Config files
 
-Files will be putted to ~/.PDB directory.
+Files will be created in directory when program is run .
+If in enviroment exist C<PDB_use_HOME> than everything is created into ~/.PDB directory.
+Every file begin with program name and continue with:
 
 =over
 
-=item conf
+=item -conf
 
 Configuration files of saved brakpoints and watches
 
-=item keys
+=item -[stdout|stderr]
+
+Output standart STD files from runned program
+
+=item ~/.PDB.keys
 
 Configuration files of rebinded keys. 
 For function keys is FX and for Cotrol keys is Control-X.
@@ -2039,10 +2061,6 @@ For example keys 'F10' for open Menu and keys 'Ctrl+C','Ctrl+Q','Q' for Quit.
 Menu=F10
 
 Quit=Control-C,Control-Q,Q
-
-=item stdout|stderr
-
-Output standart STD files from runned program
 
 =back
 

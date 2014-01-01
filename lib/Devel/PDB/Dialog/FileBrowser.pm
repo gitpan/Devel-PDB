@@ -103,7 +103,6 @@ sub new {
         -fg     => $this->{-fg},
     );
 
-
     $this->set_binding(
         sub {
             ($this->getfocusobj == $filter ? $filebrowser : $filter)->focus;

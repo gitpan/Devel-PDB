@@ -6,7 +6,6 @@ use warnings;
 use base qw(Class::Accessor::Faster);
 
 use Carp;
-use Data::Dumper;
 
 __PACKAGE__->mk_accessors(qw(
       filename

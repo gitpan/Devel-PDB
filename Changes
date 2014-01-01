@@ -1,8 +1,12 @@
 Revision history for Perl extension Devel::PDB.
 
+1.01  Thu Jan  2 00:01:56 CEST 2014
+       - Change path for setting file
+
 1.00  Tue Jul  9 09:36:56 CEST 2013
 	- Change list - can find any object in watches etc
         - new key CTRL+I for refreshing every window content
+        - Add Data::Dumper::Sortkeys for watches
 
 0.99  Mon Jul 23 15:32:23 CEST 2012
 	- Eval code
