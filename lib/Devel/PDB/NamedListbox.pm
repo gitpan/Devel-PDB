@@ -18,7 +18,7 @@ use vars qw(
   Curses::UI::Common
   );
 
-$VERSION = '1.0';
+$VERSION = '1.1';
 
 my $var_name_spaces = 20;
 
@@ -61,6 +61,11 @@ sub update {
     my ($this, $refresh) = @_;
     my $list = $this->{-named_list};
     my @display;
+
+    if ($this->{-sort_key}) {
+        my @a = sort { $a->{name} cmp $b->{name} } @$list;
+        $list = \@a;
+    }
 
     foreach my $item (@$list) {
         my $name = $item->{name};

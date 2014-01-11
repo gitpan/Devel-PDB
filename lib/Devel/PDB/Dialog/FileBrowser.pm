@@ -17,7 +17,7 @@ use vars qw(
   Curses::UI::Common
   );
 
-$VERSION = '1.0';
+$VERSION = '1.1';
 
 my $file_label   = 'File:';
 my $filter_label = 'Filter:';
@@ -97,7 +97,7 @@ sub new {
         -x      => 10,
         -y      => $this->canvasheight - 3,
         -width  => $this->canvaswidth - 11,
-        -height => 3,
+        -height => 2,
         -text   => '',
         -bg     => $this->{-bg},
         -fg     => $this->{-fg},
@@ -119,10 +119,12 @@ sub new {
         sub {
             shift->loose_focus;
         },
-        CUI_ESCAPE
-    );
+        CUI_ESCAPE,
+        KEY_F(10));
 
-    if ($this->{its_Watches}) {
+    my @a_help = ("ESC,F10 - Exit", "Return - Choose", "Tab - switch to filter");
+    if ($this->{-its_breakpoints}) {
+        push(@a_help, "Del,F2 - Delete breakpoint");
         $this->set_binding(
             sub {
                 my $this    = shift;
@@ -138,9 +140,16 @@ sub new {
                 }
                 $this->refresh_list;
             },
-            KEY_DC
-        );
+            KEY_DC,
+            KEY_F(2));
     }
+
+    $this->add(
+        'helplabel', 'Label',
+        -x       => 1,
+        -y       => -1,
+        -reverse => 1,
+        -text    => join("  |  ", @a_help));
 
     $this->layout();
     $this->refresh_list;

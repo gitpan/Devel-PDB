@@ -18,7 +18,7 @@ use vars qw(
   Curses::UI::Common
   );
 
-$VERSION = '1.0';
+$VERSION = '1.1';
 
 sub new () {
     my $class = shift;
@@ -95,6 +95,8 @@ sub new () {
     $this->set_binding(sub { $viewer->cursor_down;     $viewer->intellidraw }, KEY_DOWN);
     $this->set_binding(sub { $viewer->cursor_pageup;   $viewer->intellidraw }, KEY_PPAGE);
     $this->set_binding(sub { $viewer->cursor_pagedown; $viewer->intellidraw }, KEY_NPAGE);
+    $this->set_binding(sub { $viewer->cursor_to_home;  $viewer->intellidraw }, KEY_HOME);
+    $this->set_binding(sub { $viewer->cursor_to_end;   $viewer->intellidraw }, KEY_END);
     $this->set_binding(sub { $viewer->search_forward;  $viewer->intellidraw }, "/");
     $this->set_binding(sub { $viewer->search_backward; $viewer->intellidraw }, "?");
 

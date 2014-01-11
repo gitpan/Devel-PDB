@@ -1,6 +1,16 @@
 Revision history for Perl extension Devel::PDB.
 
-1.01  Thu Jan  2 00:01:56 CEST 2014
+1.3   Sat Jan 11 20:30:02 CEST 2014
+       - Better eval breakpoint (Removing from breakpoint list)
+       - Repair key bind
+       - In help->key on bottom can be printed duplicity in keys
+
+1.2   Fri Jan 10 16:04:32 CEST 2014
+       - Show duplicity keys in help->keys
+       - Can add eval on breakpoint
+       - couple of small fixes in code
+
+1.1   Thu Jan  2 00:01:56 CEST 2014
        - Change path for setting file
 
 1.00  Tue Jul  9 09:36:56 CEST 2013

@@ -74,22 +74,68 @@ sub cur_y {
     return $this->_cur_y_accessor;
 }
 
-sub toggle_break {
-    my $this     = shift;
-    my $breaks   = $this->breaks;
+sub toogle_break_cond {
+    my ($this, $line, $str) = @_;
+    my $breaks = $this->breaks;
+
+    my ($stop, $action) = split(/\0/, $breaks->{$line});
+
+    my $x = "";
+    for (1 .. ($ENV{COLS} - 20)) {
+        $x .= "-";
+    }
+
+    my $cond = $Curses::UI::rootobject->question(
+        -question => $str . "\n$x",
+        %DB::def_style,
+        -title  => "Eval in breakpoint",
+        -answer => $action,
+    );
+    return 0 if (!$cond || !length($cond));
+    return "1\0" . $cond;
+}
+
+sub ret_line_number {
+    my $this = shift;
+
     my $line     = $this->cur_y;
     my $line_cnt = scalar @{$this->lines};
-    my $view     = $this->view;
-    my $ret      = 0;
 
     ++$line while (${$this->lines}[$line] == 0 && $line_cnt > $line);
     return 0 if $line_cnt <= $line;
 
+    return $line;
+}
+
+sub ret_line_breakpoint {
+    my $this   = shift;
+    my $line   = $this->ret_line_number() || return;
+    my $breaks = $this->breaks;
+
+    return $breaks->{$line};
+}
+
+sub toggle_break {
+    my ($this, $code, $r_str) = @_;
+
+    my $line   = $this->ret_line_number() || return 0;
+    my $breaks = $this->breaks;
+    my $ret    = 0;
+    my $view   = $this->view;
+    my $text   = ref($r_str) ? "Problem : $$r_str" : "In line $line";
+
     if ($breaks->{$line}) {
-        $breaks->{$line} = 0;
-        delete $breaks->{$line};
+        if ($code) {
+            my $result = $this->toogle_break_cond($line, $text);
+            return $this->toggle_break() unless ($result);
+            $ret = $breaks->{$line} = $result;
+        } else {
+            $breaks->{$line} = 0;
+            delete $breaks->{$line};
+        }
     } else {
-        $ret = $breaks->{$line} = 1;
+        my $result = $code ? $this->toogle_break_cond($line, $text) : 1;
+        $ret = $breaks->{$line} = $result;
     }
 
     if (defined $view) {

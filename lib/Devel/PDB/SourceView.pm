@@ -15,7 +15,7 @@ use vars qw(
   @ISA
   );
 
-$VERSION = '0.1';
+$VERSION = '1.1';
 
 @ISA = qw(
   Curses::UI::Widget
@@ -47,6 +47,8 @@ sub new () {
             'search-next'  => \&search_next,
             'search-prev'  => \&search_prev,
             'goto'         => \&goto,
+            'cursor-home'  => \&cursor_home,
+            'cursor-end'   => \&cursor_end,
         },
         -bindings => {
             KEY_UP()    => 'cursor-up',
@@ -61,6 +63,8 @@ sub new () {
             'n'         => 'search-next',
             'N'         => 'search-prev',
             "\cG"       => 'goto',
+            KEY_HOME()  => 'cursor-home',
+            KEY_END()   => 'cursor-end',
         },
 
         -nocursor => 0,
@@ -153,7 +157,9 @@ sub draw(;$) {
         }
 
         if ($breaks->{$n}) {
-            $canvas->attron(COLOR_PAIR($Curses::UI::color_object->get_color_pair('red', $this->{-bg}))) if $color;
+            $canvas->attron(
+                COLOR_PAIR($Curses::UI::color_object->get_color_pair(($breaks->{$n} =~ /\0/) ? 'black' : 'red', $this->{-bg})))
+              if $color;
             $canvas->addch($y, 0, '*');
             $canvas->attron($color) if $color;
         }
@@ -260,9 +266,10 @@ sub search_prev {
 }
 
 sub goto {
-    my $this = shift;
+    my ($this, $line) = @_;
 
-    my $line = shift || $Curses::UI::rootobject->question(-question => 'Destination line number', %DB::def_style);
+    $line = undef if (length($line) == 1 && ord($line) < 32);
+    $line = $Curses::UI::rootobject->question(-question => 'Destination line number', %DB::def_style) unless (defined($line));
     $line = int $line if defined $line;
     if ($line > 0) {
         my $source = $this->source;
@@ -272,6 +279,17 @@ sub goto {
         $source->cur_y($line - 1);
         $this->scroll_to_cursor;
     }
+}
+
+sub cursor_home {
+    my $this = shift;
+    $this->goto(1);
+}
+
+sub cursor_end {
+    my $this   = shift;
+    my $source = $this->source;
+    $this->goto(scalar(@{$source->lines}));
 }
 
 1;

@@ -19,7 +19,7 @@ use Devel::PDB::Source;
 
 use vars qw(*dbline $usercontext $db_stop);
 
-our $VERSION = '1.01';
+our $VERSION = '1.3';
 
 our $single;
 our $sub;
@@ -149,6 +149,9 @@ END {
     } while (!$exitloop);
 }
 
+#
+# Method for restarting debugger
+#
 sub DoRestart {
 
     # There is problem with Destroyer in Curses::UI
@@ -157,8 +160,22 @@ sub DoRestart {
     # We must destroyed $cui
     $cui = undef;
 
+    $Devel::PDB::scriptName = "" if ($Devel::PDB::scriptName =~ /perl/);
+    my @a = grep { $_ ne "-w" && $_ ne "-d:PDB" } @Devel::PDB::script_args;
+
     # print "$$ doing a restart with $fname\n" ;
-    exec "perl", "-w", "-d:PDB", $Devel::PDB::scriptName, @Devel::PDB::script_args;
+    exec "perl", "-w", "-d:PDB", $Devel::PDB::scriptName, @a;
+}
+
+#
+# print any error which is put as arguments
+#
+sub print_error {
+    Devel::PDB::Dialog::Message->run(
+        -title   => "Error",
+        -message => join("\n", @_),
+        %DB::def_style
+    ) if ($cui);
 }
 
 #
@@ -238,6 +255,9 @@ sub getdblineindexes {
     return keys %dbline;
 }    # end of getdblineindexes
 
+#
+# Return list of breakpoints from files which are add as arguments
+#
 sub getbreakpoints {
     my (@fnames) = @_;
     my ($fname, @retList);
@@ -250,6 +270,9 @@ sub getbreakpoints {
     return @retList;
 }    # end of getbreakpoints
 
+#
+# Return filename from param and remove _< character from begin
+#
 sub retfilename {
     my $f = shift;
     $f =~ s/^_<//;
@@ -270,7 +293,7 @@ sub breakpoints_to_save {
         local (*dbline) = $main::{$file};
         my @a = ();
         while (my ($k, $d) = each %dbline) {
-            push(@a, {'line' => $k}) if ($d);
+            push(@a, {'line' => $k, 'breakpoint' => $d}) if ($d);
         }
         $brkList{$file} = \@a if (scalar(@a));
     }    # end of file loop
@@ -300,15 +323,15 @@ sub fix_breakpoints {
 
     foreach $brkPt (@brkPts) {
 
-        #    $startLine = $brkPt->{'line'} > 20 ? $brkPt->{'line'} - 20 : 0 ;
-        #    $endLine   = $brkPt->{'line'} < $nLines - 20 ? $brkPt->{'line'} + 20 : $nLines ;
+        #$startLine = $brkPt->{'line'} > 20 ? $brkPt->{'line'} - 20 : 0 ;
+        #$endLine   = $brkPt->{'line'} < $nLines - 20 ? $brkPt->{'line'} + 20 : $nLines ;
         #
-        #    for( (reverse $startLine..$brkPt->{'line'}), $brkPt->{'line'} + 1 .. $endLine ) {
-        #      next unless $brkPt->{'text'} eq $dbline[$_] ;
-        #      $brkPt->{'line'} = $_ ;
-        #      push @retList, $brkPt ;
-        #      last ;
-        #    }
+        #for( (reverse $startLine..$brkPt->{'line'}), $brkPt->{'line'} + 1 .. $endLine ) {
+        #   next unless $brkPt->{'text'} eq $dbline[$_] ;
+        #   $brkPt->{'line'} = $_ ;
+        #   push @retList, $brkPt ;
+        #   last ;
+        #}
         push @retList, $brkPt;
     }    # end of breakpoint list
 
@@ -331,7 +354,7 @@ sub set_breakpoints {
         }
 
         #$dbline{$brkPt->{'line'}} = { %$brkPt } ; # make a fresh copy
-        $dbline{$brkPt->{'line'}} = 1;
+        $dbline{$brkPt->{'line'}} = exists($brkPt->{'breakpoint'}) ? $brkPt->{'breakpoint'} : 1;
     }
 
 }
@@ -356,6 +379,9 @@ sub restore_breakpoints_from_save {
 
 }    # end of restore_breakpoints_from_save ;
 
+#
+# Loading watches and breakpoint from state file(it is param)
+#
 sub load_state_file {
     my ($fName) = @_;
 
@@ -370,8 +396,11 @@ sub load_state_file {
         %postponed_file = ();
 
         restore_breakpoints_from_save($files);
+
+        # Don't load saved watches against
+        my %h = map { $_->{name} => 1 } @watch_exprs;
         foreach $rh (@$expr_list) {
-            push @watch_exprs, {name => $rh->{name}};
+            push @watch_exprs, {name => $rh->{name}} unless exists($h{$rh->{name}});
         }
         $update_watch_list = 1;
 
@@ -382,14 +411,9 @@ sub load_state_file {
     }
 }    # end of Restore State
 
-sub print_error {
-    Devel::PDB::Dialog::Message->run(
-        -title   => "Error",
-        -message => join("\n", @_),
-        %DB::def_style
-    ) if ($cui);
-}
-
+#
+# Save watches and breakpoints to state filename(it is param)
+#
 sub save_state_file {
     my ($fname) = @_;
     my ($files, $d, $saveStr);
@@ -415,6 +439,11 @@ sub save_state_file {
 
 my $_log_opened = 0;
 
+#
+# Internal method for printing anything to file
+# 1. name of text
+# 2. variable
+#
 sub log_dumper {
     my ($name, $a) = @_;
 
@@ -426,16 +455,20 @@ sub log_dumper {
     print W "$name";
 
     if ($a) {
-        local $Data::Dumper::Purity = 0;
-        local $Data::Dumper::Terse  = 0;
-        local $Data::Dumper::Indent = 2;
+        local $Data::Dumper::Purity   = 0;
+        local $Data::Dumper::Terse    = 0;
+        local $Data::Dumper::Indent   = 2;
+        local $Data::Dumper::Sortkeys = 1;
         print W Dumper($a);
     }
     print W "\n";
     close(W);
 }
 
-sub db_quit {
+#
+# UI for exiting
+#
+sub ui_db_quit {
     return
       if not $cui->dialog(
         -title   => 'Quit Debugger',
@@ -450,6 +483,8 @@ sub db_quit {
 
     $db_exit = 1;
 
+    save_state_file(config_file("conf.rc"));
+
     #print(STDERR $_, "\n") foreach (@compiled);
     exit(0);
 }
@@ -462,31 +497,52 @@ sub db_cont {
     $yield = 1;
 }
 
+#
+# Key for step into method
+#
 sub db_step_in {
     $new_single = 1;
     $yield      = 1;
 }
 
+#
+# Key for step over - next step
+#
 sub db_step_over {
     $new_single = 2;
     $yield      = 1;
 }
 
+#
+# Key for step from given method
+#
 sub db_step_out {
     $new_single = 0;
     $stack[-1] &= ~1;
     $yield = 1;
 }
 
+#
+# $code is 0 or 1 and $r is ref to error string
+# 0 - Set breakpoint, If breakpoint exist on given line, than remove
+# 1 - Set breakpoint with condition
+# StringRef - Problem with condition in breakpoint, that reedit
+#
 sub db_toggle_break {
+    my ($code, $r) = shift;
     local (*dbline) = $main::{'_<' . $current_source->filename};
-    $current_source->toggle_break;
+    $current_source->toggle_break($code, $r);
 }
 
+#
+# Add watch expression
+#
 sub db_add_watch_expr {
     my $expr = $cui->question(
-        -question => "Please enter an expression to watches\n" . "Global variables must be set as '\$main::varname'",
-        -title    => "Add watch expresion",
+        -question => "Please enter an expression to watches\n"
+          . "Global variables must be set as '\$main::varname'\n"
+          . 'Array or Hash must set as Reference like \@a, otherwise show size',
+        -title => "Add watch expresion",
         %def_style
     );
     return if !$expr;
@@ -494,6 +550,9 @@ sub db_add_watch_expr {
     $update_watch_list = 1;
 }
 
+#
+# List breapoints
+#
 sub ui_list_breakpoints {
     my @a = ();
     foreach my $file (keys %main::) {    # file loop
@@ -501,16 +560,21 @@ sub ui_list_breakpoints {
 
         local (*dbline) = $main::{$file};
         while (my ($k, $d) = each %dbline) {
-            push(@a, retfilename($file) . " line:$k") if ($d);
+            next unless ($d);
+            my $str = retfilename($file) . " line:$k ";
+            if ($d =~ /\0/) {
+                my ($s, $action) = split(/\0/, $d);
+                $str .= "test ( $action )";
+            }
+            push(@a, $str);
         }
     }    # end of file loop
 
     my $filename = $cui->tempdialog(
         'Devel::PDB::Dialog::FileBrowser',
-        -title => "List all breakpoints",
-        -files => \@a,
-
-        its_Watches => 1,
+        -title           => "List all breakpoints",
+        -files           => \@a,
+        -its_breakpoints => 1,
         %def_style,
     );
 
@@ -567,11 +631,11 @@ sub refresh_stack_menu {
     }
 
     #$self->{stack_menu}->menu->delete(0, 'last') ; # delete existing menu items
-    #	for( $i = 0 ; $subStack->[$i] ; $i++ ) {
-    #		$str = defined $subStack->[$i+1] ? "$subStack->[$i+1]->{name}" : "MAIN" ;
-    #		my ($f, $line) = ($subStack->[$i]->{filename}, $subStack->[$i]->{line}) ; # make copies of the values for use in 'sub'
-    #		$self->{stack_menu}->command(-label => $str, -command => sub { $self->goto_sub_from_stack($f, $line) ; } ) ;
-    #	}
+    #for( $i = 0 ; $subStack->[$i] ; $i++ ) {
+    #	$str = defined $subStack->[$i+1] ? "$subStack->[$i+1]->{name}" : "MAIN" ;
+    #	my ($f, $line) = ($subStack->[$i]->{filename}, $subStack->[$i]->{line}) ; # make copies of the values for use in 'sub'
+    #	$self->{stack_menu}->command(-label => $str, -command => sub { $self->goto_sub_from_stack($f, $line) ; } ) ;
+    #}
 }    # end of refresh_stack_menu
 
 # dump_trace(skip[,count])
@@ -713,6 +777,9 @@ sub dump_trace {
     @sub;
 } ## end sub dump_trace
 
+#
+# List of stack - methods call
+#
 sub ui_view_stack {
 
     my $i     = -1;
@@ -793,6 +860,9 @@ sub ui_view_stack {
     $sv_win->focus;
 }
 
+#
+# UI open file
+#
 sub ui_open_file {
     my ($title, $files) = @_;
 
@@ -809,6 +879,9 @@ sub ui_open_file {
     }
 }
 
+#
+# UI view STD[OUT|ERR] files
+#
 sub db_view_std_files {
     my ($use_exit) = @_;
     my @ab = ({
@@ -882,6 +955,11 @@ sub db_view_std_files {
     $cui->delete("winmytextviewer");
 }
 
+#
+# Change vertical size of windows. This change size of windows between Source and Watches+Stack
+# 1  - decrease Source window
+# -1 - increase Source window
+#
 sub ui_adjust_vert_parts {
     my $delta = shift;
     return
@@ -892,6 +970,11 @@ sub ui_adjust_vert_parts {
     $cui->layout_contained_objects;
 }
 
+#
+# Change horizontal size of windows. This change size of windows between Watches expresion and Stack
+# 1  - increasing Watches window
+# -1 - decreasing Watches window
+#
 sub ui_adjust_hori_parts {
     my $delta = shift;
     return
@@ -902,6 +985,9 @@ sub ui_adjust_hori_parts {
     $cui->layout_contained_objects;
 }
 
+#
+# Return name for config file
+#
 sub config_file {
     my $name      = shift;
     my $file_name = File::Basename::basename($Devel::PDB::scriptName);
@@ -915,7 +1001,15 @@ sub config_file {
 
 my $keys_binded = undef;
 my @keys_global = ();
+my %keys_hash   = ();
 
+#
+# Set key
+# 1 - CodeRef for appened action
+# 2 - nickname for given action
+# 3 - Text which will be printed
+# 4 and others are keys for binding
+#
 sub set_key_binding($$@) {
     my $rf   = shift;
     my $name = shift;
@@ -955,8 +1049,14 @@ sub set_key_binding($$@) {
     $cui->set_binding($rf, exists($keys_binded->{$name}) ? @{$keys_binded->{$name}} : @keys);
 
     $text .= " ";
-    foreach (exists($keys_binded->{$name}) ? @{$keys_binded->{$name}} : @keys) {
-        $text .= $cui->key_to_ascii($_) . " ";
+    foreach my $k (exists($keys_binded->{$name}) ? @{$keys_binded->{$name}} : @keys) {
+        my $key = $cui->key_to_ascii($k);
+        $text .= $key . " ";
+
+        # Add duplicity
+        $keys_hash{$key} = [] unless (exists($keys_hash{$key}));
+        my $ra = $keys_hash{$key};
+        push(@$ra, $name);
     }
 
     return {-value => $rf, -label => $text};
@@ -975,6 +1075,12 @@ sub val_unctrl {
     $_;
 }
 
+#
+# Window wieving or editing
+# 1 - Editing program params
+# 2 - Editing enviroment
+# 3 - Viewing Perl special variables
+#
 sub ui_text_editor {
     my $type = shift;
 
@@ -1004,31 +1110,30 @@ sub ui_text_editor {
             return $s;
         }
 
-        {
-            no strict;
-            *stab = *{"main::"};
-            foreach my $key (sort keys %stab) {
-                next if ($key =~ /^_</);
-                local (*entry) = $stab{$key};
+        no strict;
+        *stab = *{"main::"};
+        foreach my $key (sort keys %stab) {
+            next if ($key =~ /^_</);
+            local (*entry) = $stab{$key};
 
-                my $fileno;
+            my $fileno;
 
-                local $Data::Dumper::Purity = 0;
-                local $Data::Dumper::Terse  = 0;
-                local $Data::Dumper::Indent = 2;
-                if (defined $entry) {
-                    push(@rows, '$' . &val_unctrl($key) . " = " . $entry);
-                } elsif (@entry) {
-                    local $Data::Dumper::Varname = "\@$key";
-                    push(@rows, &rep_dumper(Dumper(@entry)));
-                } elsif ($key ne "main::"
-                    && $key ne "DB::"
-                    && %entry
-                    && $key !~ /::$/
-                    && !($package eq "dumpvar" and $key eq "stab")) {
-                    local $Data::Dumper::Varname = "\%$key";
-                    push(@rows, &rep_dumper(Dumper(%entry)));
-                }
+            local $Data::Dumper::Purity   = 0;
+            local $Data::Dumper::Terse    = 0;
+            local $Data::Dumper::Indent   = 2;
+            local $Data::Dumper::Sortkeys = 1;
+            if (defined $entry) {
+                push(@rows, '$' . &val_unctrl($key) . " = " . $entry);
+            } elsif (@entry) {
+                local $Data::Dumper::Varname = "\@$key";
+                push(@rows, &rep_dumper(Dumper(@entry)));
+            } elsif ($key ne "main::"
+                && $key ne "DB::"
+                && %entry
+                && $key !~ /::$/
+                && !($package eq "dumpvar" and $key eq "stab")) {
+                local $Data::Dumper::Varname = "\%$key";
+                push(@rows, &rep_dumper(Dumper(%entry)));
             }
         }
     }
@@ -1107,7 +1212,10 @@ sub ui_text_editor {
     $sv_win->focus;
 }
 
-sub db_help {
+#
+# Print helping keys association
+#
+sub ui_db_help {
     my @a = ();
     push(@a, "Global");
     foreach my $rh (@keys_global) {
@@ -1137,6 +1245,19 @@ sub db_help {
     push(@a, "Other");
     push(@a, "  Esc,F10\tBack,Exit function");
 
+    if (keys %keys_hash) {
+        log_dumper("keys", \%keys_hash);
+        my @ad = ();
+        foreach my $k (sort %keys_hash) {
+            next if (ref($k));
+            my $ra = $keys_hash{$k};
+            next if (scalar(@$ra) <= 1);
+            push(@ad, $k);
+            push(@ad, map { $_ } @$ra);
+        }
+        push(@a, " ", " ", "Duplicity in keys", " ", @ad) if (@ad);
+    }
+
     Devel::PDB::Dialog::Message->run(
         -title   => "Help Keys",
         -message => join("\n", @a),
@@ -1144,6 +1265,9 @@ sub db_help {
     );
 }
 
+#
+# Initialize ncurses methods
+#
 sub init {
 
     # can anybody tell me why $win->notimeout(1) doesn't work?
@@ -1216,6 +1340,7 @@ sub init {
     $padvar_list = $auto_win->add(
         'padvar_list', 'Devel::PDB::NamedListbox',
         -readonly   => 1,
+        -sort_key   => 'name',
         -named_list => \@padlist_disp,
     );
     $padvar_list->userdata($cui);
@@ -1229,7 +1354,12 @@ sub init {
         -title   => 'Watch',
         %def_style,
     );
-    $watch_list = $watch_win->add('watch_list', 'Devel::PDB::NamedListbox', -named_list => \@watch_exprs,);
+    $watch_list = $watch_win->add(
+        'watch_list', 'Devel::PDB::NamedListbox',
+
+        # -sort_key   => 'name', # For sorting by name
+        -named_list => \@watch_exprs,
+    );
 
     my $fConfig = config_file("conf");
 
@@ -1240,9 +1370,10 @@ sub init {
     my @aBreakpoint = ();
     my @aSettings   = ();
 
-    set_key_binding(\&db_help, "Help", "Keys help", "\cH");
+    set_key_binding(\&ui_db_help, "Keys", "Keys help", "\cK");
     set_key_binding(sub { shift->getobj('menu')->focus }, "Menu", "Main menu", KEY_F(10));
 
+    # Submenu - File
     push(@aFile, set_key_binding(sub { db_view_std_files(0); $sv_win->focus; }, "ViewSTDFiles", "View STD* files", KEY_F(4)));
 
     push(
@@ -1311,17 +1442,16 @@ sub init {
     push(
         @aFile,
         set_key_binding(
-            sub { ui_open_file('Compiled Files', \@compiled); }, "FilesCompiled",
-            "Show 'Compiled Files' Dialog", KEY_F(11),
-            "\cO"
-        ));
+            sub { ui_open_file('Compiled Files', \@compiled); },
+            "FilesCompiled", "Show 'Compiled Files' Dialog",
+            KEY_F(11)));
     push(
         @aFile,
         set_key_binding(
             sub { ui_open_file('Opened Files', [keys(%sources)]); },
             "FilesOpened", "Show 'Opened Files' Dialog",
             KEY_F(12)));
-    push(@aFile, set_key_binding(\&db_quit, "Quit", "Quit the debugger", "\cQ", "\cC"));
+    push(@aFile, set_key_binding(\&ui_db_quit, "Quit", "Quit the debugger", "\cQ", "\cC"));
     push(
         @aFile,
         set_key_binding(
@@ -1333,15 +1463,16 @@ sub init {
             },
             "Refresh",
             "Refresh windows",
-            "\cI"
+            "\cN"
         ));
 
+    # Submenu - Execution
     push(@aExecution, set_key_binding(\&db_cont,      "Continue", "Run|Continue execution", KEY_F(5)));
     push(@aExecution, set_key_binding(\&db_step_out,  "StepOut",  "Step Out",               KEY_F(6)));
     push(@aExecution, set_key_binding(\&db_step_in,   "StepIn",   "Step In",                KEY_F(7)));
     push(@aExecution, set_key_binding(\&db_step_over, "StepOver", "Step Over",              KEY_F(8)));
     push(@aExecution, set_key_binding(sub { ui_text_editor(1); }, "ArgumentsEdit",   "Edit program paramaters",    "\cE"));
-    push(@aExecution, set_key_binding(sub { ui_text_editor(2); }, "EnviromentsEdit", "Edit enviroment paramaters", "\cO"));
+    push(@aExecution, set_key_binding(sub { ui_text_editor(2); }, "EnviromentsEdit", "Edit enviroment paramaters", "\cM"));
     push(
         @aExecution,
         set_key_binding(
@@ -1358,9 +1489,11 @@ sub init {
             "\cP"
         ));
 
-    push(@aBreakpoint, set_key_binding(\&db_toggle_break,     "Breakpoint",      "Toggle Breakpoint",    KEY_F(9)));
+    # Submenu - Breakpoint
+    push(@aBreakpoint, set_key_binding(sub { db_toggle_break(0, undef) }, "Breakpoint", "Toggle Breakpoint", KEY_F(9)));
+    push(@aBreakpoint, set_key_binding(sub { db_toggle_break(1, undef) }, "BreakpointCode", "Toggle Breakpoint Code", "\cO"));
     push(@aBreakpoint, set_key_binding(\&db_add_watch_expr,   "WatchExpression", "Add watch expression", "\cW"));
-    push(@aBreakpoint, set_key_binding(\&ui_list_breakpoints, "ListBreakpoints", "List all breakpoints", "\cL"));
+    push(@aBreakpoint, set_key_binding(\&ui_list_breakpoints, "ListBreakpoints", "List all breakpoints", "\cB"));
     push(@aBreakpoint, set_key_binding(\&clearalldblines, "ClearBreakpoints", "Clear all breakpoints"));
     push(@aBreakpoint,
         set_key_binding(sub { @watch_exprs = (); $update_watch_list = 1; }, "ClearWatches", "Clear all watches"));
@@ -1371,6 +1504,7 @@ sub init {
             "ClearAll", "Clear all settings", "\cX"
         ));
 
+    # Submenu - Settings
     push(
         @aSettings,
         set_key_binding(
@@ -1420,14 +1554,16 @@ sub init {
             "\cS"
         ));
 
+    # Submenu - View
     push(
         @aView,
         set_key_binding(
             sub {
                 my $text;
-                local $Data::Dumper::Purity = 0;
-                local $Data::Dumper::Terse  = 1;
-                local $Data::Dumper::Indent = 2;
+                local $Data::Dumper::Purity   = 0;
+                local $Data::Dumper::Terse    = 1;
+                local $Data::Dumper::Indent   = 2;
+                local $Data::Dumper::Sortkeys = 1;
                 $text = (scalar(@Devel::PDB::script_args) ? Dumper(@Devel::PDB::script_args) : "Not arguments putted");
                 Devel::PDB::Dialog::Message->run(
                     -title   => "Arguments",
@@ -1452,12 +1588,15 @@ sub init {
     push(@aView, set_key_binding(\&ui_view_stack, "WindowStack", "View Stack Window", "\cT"));
     push(@aView, set_key_binding(sub { ui_text_editor(3); }, "ViewVariables", "View special variables", "\cU"));
 
-    push(@aView, set_key_binding(sub { ui_adjust_vert_parts(1) },  "VerticalPartsMin",   "Vertical window minimize",   '{'));
-    push(@aView, set_key_binding(sub { ui_adjust_vert_parts(-1) }, "VerticalPartsMax",   "Vertical window maximize",   '}'));
-    push(@aView, set_key_binding(sub { ui_adjust_hori_parts(-1) }, "HorizontalPartsMin", "Horizontal window minimize", '['));
-    push(@aView, set_key_binding(sub { ui_adjust_hori_parts(1) },  "HorizontalPartsMin", "Horizontal window maximize", ']'));
+    push(@aView,
+        set_key_binding(sub { ui_adjust_vert_parts(1) }, "VerticalPartsMin", "Vertical window(Source file) minimize", '{'));
+    push(@aView,
+        set_key_binding(sub { ui_adjust_vert_parts(-1) }, "VerticalPartsMax", "Vertical window(Source file) maximize", '}'));
+    push(@aView,
+        set_key_binding(sub { ui_adjust_hori_parts(-1) }, "HorizontalPartsMin", "Horizontal window(Stack) minimize", '['));
+    push(@aView,
+        set_key_binding(sub { ui_adjust_hori_parts(1) }, "HorizontalPartsMin", "Horizontal window(Stack) maximize", ']'));
 
-    $cui->set_binding(\&db_help, "\cK");
     $cui->add(
         'menu',
         'Menubar',
@@ -1480,7 +1619,7 @@ sub init {
             {   -label   => 'Help',
                 -submenu => [{
                         -label => 'Keys',
-                        -value => \&db_help,
+                        -value => \&ui_db_help,
                     },
                     {   -label => 'About',
                         -value => sub {
@@ -1533,6 +1672,9 @@ EOF
     load_state_file(config_file("conf.rc"));
 }
 
+#
+# Return for given filename which find or creater for given param
+#
 sub get_source {
     my $filename = shift;
     my $source   = $sources{$filename};
@@ -1544,32 +1686,14 @@ sub get_source {
             lines    => \@dbline,
             breaks   => \%dbline,
         );
-
     }
 
     return $source;
 }
 
-my @saved;
-
-sub save {
-    @saved = ($@, $!, $,, $/, $\, $^W);
-    $,     = '';
-    $/     = "\n";
-    $\     = '';
-    $^W    = 0;
-}
-
-sub eval {
-    ($@, $!, $,, $/, $\, $^W) = @saved;
-    my $res = eval "package $package; $evalarg";
-
-    #my $res = eval 'no strict;($@, $!, $^E, $,, $/, $\, $^W) = @saved;' . "package $package;$evalarg ;";
-
-    save;
-    $res;
-}
-
+#
+# Updating watch list in Watches window
+#
 sub ui_update_watch_list {
     local $Data::Dumper::Terse = 1;
     local $Data::Dumper::Maxdepth;
@@ -1590,6 +1714,30 @@ sub ui_update_watch_list {
     $watch_list->update;
 }
 
+#
+# Perl Debugger methods
+#
+my @saved;
+
+sub save {
+    @saved = ($@, $!, $,, $/, $\, $^W);
+    $,     = '';
+    $/     = "\n";
+    $\     = '';
+    $^W    = 0;
+}
+
+sub eval {
+    ($@, $!, $,, $/, $\, $^W) = @saved;
+    my $res = eval "package $package; $evalarg";
+
+    #my $res = eval 'no strict;($@, $!, $^E, $,, $/, $\, $^W) = @saved;' . "package $package;$evalarg ;";
+
+    save;
+    $res;
+}
+
+# Main method which is load when program started, stopped or step in position where is breakpoint
 sub DB {
     return if $exit;
     save;
@@ -1619,10 +1767,6 @@ sub DB {
     my @vals  = $vals->ARRAY;
     my $count = @names;
 
-    #log_dumper($scope);
-    #log_dumper("anames", @names);
-    #log_dumper("avals",  @vals);
-
     refresh_stack_menu();
 
     local $Data::Dumper::Terse = 1;
@@ -1649,6 +1793,7 @@ sub DB {
         }
         ++$j;
     }
+
     $padvar_list->update($renew);
 
     #local (*dbline) = $main::{"_<$filename"};
@@ -1657,22 +1802,38 @@ sub DB {
 
     ui_update_watch_list;
 
-    $yield      = 0;
+    $yield = 0;
+
+    # Breakpoint with action
+    my $brkp = $current_source->ret_line_breakpoint();
+    my ($stop, $action);
+    ($stop, $action) = split(/\0/, $brkp) if ($brkp);
+    if ($action) {
+        my $res = eval "return 1 if ($action); return 0;\n";
+        if ($@) {
+            my $str = $@;
+            db_toggle_break(1, \$str);
+        }
+        $yield = 1 unless ($res);
+    }
+
     $new_single = $single;
     $cui->focus(undef, 1);
     $cui->draw;
     $update_watch_list = 0;
     while (!$yield) {
+
+        # Wait for any key
         $cui->do_one_event;
         if ($update_watch_list) {
             ui_update_watch_list;
             $cui->draw;
         }
-        if ($usercontext) {
 
-            #my $usc =  'no strict;($@, $!, $^E, $,, $/, $\, $^W) = @saved;' . "package $package;";
-            #my $arg = "\$^D = \$^D | \$DB::db_stop;\n$usercontext";
-            #eval "$usc $arg;\n";
+        if ($usercontext) {    # User eval
+                               #my $usc =  'no strict;($@, $!, $^E, $,, $/, $\, $^W) = @saved;' . "package $package;";
+                               #my $arg = "\$^D = \$^D | \$DB::db_stop;\n$usercontext";
+                               #eval "$usc $arg;\n";
             eval "$usercontext;\n";
             print_error($@) if ($@);
             $usercontext = undef;
@@ -1876,7 +2037,7 @@ Step Over
 
 =item Breakpoint - F9
 
-Toggle Breakpoint
+Toggle Breakpoint. Set or remove breakpoint on cursor position.
 
 =item Menu - F10
 
@@ -1894,7 +2055,11 @@ Show 'I<Opened Files>' Dialog
 
 Quit the debugger
 
-=item Refresh - Ctrl+I
+=item BreakpointCode - Ctrl+O
+
+Add/Edit/Remove breakpoint with condition on given line. Can be also removed by F9 - Breakpoint
+
+=item Refresh - Ctrl+N
 
 Refresh all window contents
 
@@ -1918,7 +2083,7 @@ View arguments(parameters) of runned program
 
 Edit arguments(parameters) of runned program
 
-=item EnviromentsEdit - Ctrl+O
+=item EnviromentsEdit - Ctrl+M
 
 Edit enviroments
 
@@ -1941,6 +2106,10 @@ Load breakpoints and watches from config file
 =item ViewVariables - Ctrl+U
 
 View special variables
+
+=item ListBreakpoints - Ctrl+B
+
+List all breakpoints in files and position
 
 =item ClearBreakpoints -
 
