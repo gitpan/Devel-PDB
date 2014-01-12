@@ -92,6 +92,9 @@ sub toogle_break_cond {
         -answer => $action,
     );
     return 0 if (!$cond || !length($cond));
+    my $str = $cond;
+    $str =~ s/ //g;
+    return 0 unless length($str);
     return "1\0" . $cond;
 }
 

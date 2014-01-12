@@ -1,5 +1,9 @@
 Revision history for Perl extension Devel::PDB.
 
+1.4   Sun Jan 12 13:40:02 CEST 2014
+       - reverse for stack window
+       - couple of window fixes
+
 1.3   Sat Jan 11 20:30:02 CEST 2014
        - Better eval breakpoint (Removing from breakpoint list)
        - Repair key bind

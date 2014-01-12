@@ -63,8 +63,10 @@ sub update {
     my @display;
 
     if ($this->{-sort_key}) {
+
+        # Must sort array like this, other methods not worked properly
         my @a = sort { $a->{name} cmp $b->{name} } @$list;
-        $list = \@a;
+        @$list = @a;
     }
 
     foreach my $item (@$list) {

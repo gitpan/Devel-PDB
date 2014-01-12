@@ -19,7 +19,7 @@ use Devel::PDB::Source;
 
 use vars qw(*dbline $usercontext $db_stop);
 
-our $VERSION = '1.3';
+our $VERSION = '1.4';
 
 our $single;
 our $sub;
@@ -623,7 +623,7 @@ sub refresh_stack_menu {
     $subStack   = [];
 
     # clear existing entries
-    for ($i = 0; $i <= $DB::subroutine_depth; $i++) {
+    for ($i = 0; $i <= ($DB::subroutine_depth || 0); $i++) {
         my @a = caller $i + $sub_offset;
         my ($package, $filename, $line, $subName) = caller $i + $sub_offset;
         last if !$subName;
@@ -781,6 +781,7 @@ sub dump_trace {
 # List of stack - methods call
 #
 sub ui_view_stack {
+    my $rev = shift;
 
     my $i     = -1;
     my @a     = ();
@@ -834,17 +835,21 @@ sub ui_view_stack {
         -width         => -1,
         -reverse       => 1,
         -paddingspaces => 1,
-        -text          => " Ctrl+Q|Ctrl+C|F10|ESC - Exit      Return - jump to given function "
+        -text          => " Ctrl+Q|Ctrl+C|F10|ESC - Exit  |  Ctrl+R|F2 - Reverse  |  Return - jump to given function "
     );
     $listbox->set_routine(
         'option-select',
         sub {
             my $this = shift;
-            $this->{-id_value} = $this->get_active_value;
+
+            #$this->{-id_value} = $this->get_active_value;
             $this->loose_focus;
         });
 
     $listbox->set_binding(sub { shift->loose_focus; }, "\cQ", "\cC", KEY_F(10), CUI_ESCAPE());
+
+    $listbox->set_binding(sub { my $this = shift; my @ar = reverse @a; $this->values(\@ar); }, "\cR", KEY_F(2));
+
     my $sel = $listbox->modalfocus();
     my $ia = $sel ? $sel->get_active_value() : undef;
     $win->delete("StackWindow");
@@ -854,7 +859,7 @@ sub ui_view_stack {
         my $source = $current_source = get_source($h_ret{$ia}->{file});
         $sv->source($source) if $source;
         $sv->intellidraw;
-        $sv->goto($h_ret{$ia}->{line});
+        $sv->goto($h_ret{$ia}->{line} + 1);
     }
 
     $sv_win->focus;
@@ -924,7 +929,7 @@ sub db_view_std_files {
     );
     my $textviewer = $win->add(
         "mytextviewer", "TextViewer",
-        -homeonblur      => 1,                                                             # cursor to homepos on blur?
+        -homeonblur      => 1,       # cursor to homepos on blur?
         -fg              => -1,
         -bg              => -1,
         -cursor          => 1,
@@ -936,9 +941,9 @@ sub db_view_std_files {
         -vscrollbar      => 1,
         -hscrollbar      => 1,
         -showhardreturns => 0,
-        -wrapping        => 0,                                                             # wrapping slows down the editor :-(
+        -wrapping        => 0,       # wrapping slows down the editor :-(
         -text            => $text,
-        -title           => " Viewing file " . config_file($t == 2 ? "stderr" : "stdout"),
+        -title => " Viewing file STD" . ($t == 2 ? "ERR" : "OUT") . " : " . config_file($t == 2 ? "stderr" : "stdout"),
         %def_style,
     );
     $win->add(
@@ -1246,7 +1251,6 @@ sub ui_db_help {
     push(@a, "  Esc,F10\tBack,Exit function");
 
     if (keys %keys_hash) {
-        log_dumper("keys", \%keys_hash);
         my @ad = ();
         foreach my $k (sort %keys_hash) {
             next if (ref($k));
@@ -1585,8 +1589,8 @@ sub init {
             sub { ui_update_watch_list(); $watch_win->focus; },
             "WindowWatches", "Switch to the Watch Window",
             KEY_F(3)));
-    push(@aView, set_key_binding(\&ui_view_stack, "WindowStack", "View Stack Window", "\cT"));
-    push(@aView, set_key_binding(sub { ui_text_editor(3); }, "ViewVariables", "View special variables", "\cU"));
+    push(@aView, set_key_binding(sub { ui_view_stack(0) },  "WindowStack",   "View Stack Window",      "\cT"));
+    push(@aView, set_key_binding(sub { ui_text_editor(3) }, "ViewVariables", "View special variables", "\cU"));
 
     push(@aView,
         set_key_binding(sub { ui_adjust_vert_parts(1) }, "VerticalPartsMin", "Vertical window(Source file) minimize", '{'));

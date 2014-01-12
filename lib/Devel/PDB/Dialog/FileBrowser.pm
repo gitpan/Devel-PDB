@@ -39,7 +39,6 @@ sub new {
         -border       => 1,
         -centered     => 1,
         -titleinverse => 0,
-        -ipad         => 1,
     );
 
     my $this = $class->SUPER::new(%args);
@@ -51,6 +50,7 @@ sub new {
         -y           => 0,
         -border      => 1,
         -width       => $this->canvaswidth,
+        -padtop      => 1,
         -padbottom   => 4,
         -values      => [],
         -vscrollbar  => 1,
@@ -146,7 +146,6 @@ sub new {
 
     $this->add(
         'helplabel', 'Label',
-        -x       => 1,
         -y       => -1,
         -reverse => 1,
         -text    => join("  |  ", @a_help));
